@@ -288,7 +288,6 @@ lex.lex()
 precedence = (
     ('left','OR'),
     ('left','AND'),
-    ('left','RPAREN','LPAREN'),
     )
 
 
@@ -296,7 +295,7 @@ precedence = (
 def p_conjunctset_extend(p):
     'conjunctset : conjunctset AND conjunctset'
     p[0] = p[1] | p[3]
-    global saveSet
+    # global saveSet
     saveSet = p[0]
 
 
@@ -309,13 +308,13 @@ def p_conjunctset_create(p):
     'conjunctset : conjunct'
     s = set()
     s.add(p[1])
-    print(p[1])
     p[0] = s
 
 
 def p_conjunct_extend(p):
     'conjunct : conjunct OR conjunct'
-    p[0] = p[1].addElements(p[3].variables)
+    p[1].addElements(p[3].variables)
+    p[0] = p[1]
 
 
 def p_conjunct_create(p):
@@ -356,7 +355,7 @@ parser = yacc.yacc()
 
 # data = '''(~p \/ q) /\ (q \/ r) /\ (~p \/ ~r) /\ (p \/ r) /\ (~p \/ r) /\ (p \/ ~r)'''
 
-data = '''(~p \/ q)'''
+
 
 # lex.input(data)
 #
@@ -365,11 +364,13 @@ data = '''(~p \/ q)'''
 #     if not tok:
 #         break    # закончились печеньки
 #     print (tok)
-saveSet = set()
-parser.parse(data)
 
-for conj in saveSet:
-    print(conj)
+from datainput import data
+
+rez = parser.parse(data)
+
+
+checkSatByConjunctsSet(rez)
 
 #lexer.input(data)
 
