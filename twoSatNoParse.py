@@ -4,7 +4,8 @@
 
 
 from typing import Set, Generic, TypeVar
-from ply.lex import lex as mainFunc, Lexer
+# from ply.lex import lex as mainFunc, Lexer
+import ply.lex as lex
 from pprint import pprint
 
 T = TypeVar('T')
@@ -79,6 +80,9 @@ class Element(Generic[T]):
         self.negation = negation
         self.name = name
 
+    def negate(self):
+        self.negation ^= True
+
     def isNegation(self, el: T):
         return (self.name == el.name) & (self.negation ^ el.negation)
 
@@ -96,9 +100,14 @@ class Conjunct(Generic[T]):
     def __init__(self):
         self.variables = set()  # type: Set[Element]
 
+    def addElement(self, el):
+        tempSet = set()
+        tempSet.add(el)
+        self.addElements(tempSet)
+
     def addElements(self, elements: Set[Element]):
         self.variables = self.variables | elements
-        pprint(self)
+        # pprint(self)
 
     def resolve(self, second: T):
         for el1 in self.variables:
@@ -159,58 +168,58 @@ class Conjunct(Generic[T]):
         return text
 
 
-class MyLexer(Lexer):
-    def __init__(self):
-        Lexer.__init__(self)
-        self.conjuncts = set()
-        self.currentConjunct = None
-        self.negation = False
-        self.andNeeded = False
-        self.openedBrackets = 0
-
-    def andFound(self):
-        print("And found")
-        if self.openedBrackets == 0:
-            self.endConjunct()
-        else:
-            raise SyntaxError('And literal found when it is not needed')
-
-    def beginConjunct(self):
-        if self.openedBrackets > 0:
-            raise ValueError('Beginning a conjunct while number of opened brackets is more that zero')
-        temp = Conjunct()
-        if self.currentConjunct is not None:
-            raise IndexError('Attempt to start a new conjunct when the last one is not still closed!')
-        #self.conjuncts.append(temp)
-        self.currentConjunct = temp
-        self.begin('conjunct')
-
-    def endConjunct(self):
-        print("End conjunct")
-        if self.openedBrackets != 0:
-            raise ValueError('Trying to close a conjunct while the number of opened brackets is not 0. It is %i', self.openedBrackets)
-        if self.currentConjunct is None:
-            raise IndexError('Attempt to close a conjunct while none is opened')
-        if self.currentConjunct.isTrivial() ^ True:
-            self.conjuncts.add(self.currentConjunct)
-        self.currentConjunct = None
-        self.begin('INITIAL')
-
-    def getCurrentConjunct(self) -> Conjunct:
-        if self.currentConjunct is None:
-            raise IndexError('Attempt to obtain current conjunct while the one is not opened.')
-        return self.currentConjunct
-
-    def getNegation(self):
-        save = self.negation
-        self.negation = False
-        return save
-
-    def createElement(self, name: str):
-        return Element(name, self.getNegation())
-
-    def negate(self):
-        self.negation = self.negation ^ True
+# class MyLexer(Lexer):
+#     def __init__(self):
+#         Lexer.__init__(self)
+#         self.conjuncts = set()
+#         self.currentConjunct = None
+#         self.negation = False
+#         self.andNeeded = False
+#         self.openedBrackets = 0
+#
+#     def andFound(self):
+#         print("And found")
+#         if self.openedBrackets == 0:
+#             self.endConjunct()
+#         else:
+#             raise SyntaxError('And literal found when it is not needed')
+#
+#     def beginConjunct(self):
+#         if self.openedBrackets > 0:
+#             raise ValueError('Beginning a conjunct while number of opened brackets is more that zero')
+#         temp = Conjunct()
+#         if self.currentConjunct is not None:
+#             raise IndexError('Attempt to start a new conjunct when the last one is not still closed!')
+#         #self.conjuncts.append(temp)
+#         self.currentConjunct = temp
+#         self.begin('conjunct')
+#
+#     def endConjunct(self):
+#         print("End conjunct")
+#         if self.openedBrackets != 0:
+#             raise ValueError('Trying to close a conjunct while the number of opened brackets is not 0. It is %i', self.openedBrackets)
+#         if self.currentConjunct is None:
+#             raise IndexError('Attempt to close a conjunct while none is opened')
+#         if self.currentConjunct.isTrivial() ^ True:
+#             self.conjuncts.add(self.currentConjunct)
+#         self.currentConjunct = None
+#         self.begin('INITIAL')
+#
+#     def getCurrentConjunct(self) -> Conjunct:
+#         if self.currentConjunct is None:
+#             raise IndexError('Attempt to obtain current conjunct while the one is not opened.')
+#         return self.currentConjunct
+#
+#     def getNegation(self):
+#         save = self.negation
+#         self.negation = False
+#         return save
+#
+#     def createElement(self, name: str):
+#         return Element(name, self.getNegation())
+#
+#     def negate(self):
+#         self.negation = self.negation ^ True
 
 
 # not using literals dictionary since I need to specify types
@@ -221,12 +230,8 @@ class MyLexer(Lexer):
 #    'T': 'TRUE'
 # }
 
-states = (
-    ('conjunct', 'exclusive'),
-)
-
 tokens = [
-    'NAME', 'LITERAL',
+    'NAME', #'LITERAL',
     'AND', 'OR', 'NOT',
     'LPAREN', 'RPAREN'
 ]# + list(set(myLiterals.values()))
@@ -234,63 +239,39 @@ tokens = [
 # Tokens
 
 
-t_conjunct_OR = r'\\/'
+t_OR = r'\\/'
 
 
-def t_ANY_LPAREN(t):
+def t_LPAREN(t):
     r'\('
-    if t.lexer.lexstate == 'INITIAL':
-        t.lexer.beginConjunct()
-        print("Opened conjunct")
-    t.lexer.openedBrackets += 1
     return t
 
 
-def t_conjunct_RPAREN(t):
+def t_RPAREN(t):
     r'\)'
-    t.lexer.openedBrackets -= 1
     return t
 
 
-def t_ANY_AND(t):
+def t_AND(t):
     r'/\\'
-    t.lexer.andFound()
     return t
 
 
-def t_ANY_NAME(t):
+def t_NAME(t):
     r'[a-zA-Z][a-zA-Z\d_]*'
-    locLex = t.lexer # type: MyLexer
-    if t.lexer.lexstate == 'INITIAL':
-        t.lexer.beginConjunct()
-    tempSet = set()
-    tempSet.add(locLex.createElement(t.value))
-    locLex.getCurrentConjunct().addElements(tempSet)
     return t
 
 
-def t_ANY_NOT(t):
+def t_NOT(t):
     r'~'
-    if t.lexer.lexstate == 'INITIAL':
-        t.lexer.beginConjunct()
-    t.lexer.negate()
     return t
-
-
-# def t_LITERAL(t):
-#     r'(' + '|'.join(myLiterals.keys()) + ')'
-#     try:
-#         t.type = myLiterals.get(t.value)
-#     except KeyError:
-#         print("Invalid literal %s", t.value)
-#     return t
 
 
 # Ignored characters
-t_ANY_ignore = " \t"
+t_ignore = " \t"
 
 
-def t_ANY_newline(t):
+def t_newline(t):
     r'\n+'
     t.lexer.lineno += t.value.count("\n")
 
@@ -300,29 +281,110 @@ def t_error(t):
     t.lexer.skip(1)
 
 
-def t_conjunct_error(t):
-    raise SyntaxError("Illegal character '%s'" % t.value[0])
+# Parsing rules
 
-myLex = MyLexer()
+lex.lex()
 
-lexer = mainFunc(lexerInput=myLex)
+precedence = (
+    ('left','OR'),
+    ('left','AND'),
+    ('left','RPAREN','LPAREN'),
+    )
 
-data = '''(~p \/ q) /\ (q \/ r) /\ (~p \/ ~r) /\ (p \/ r) /\ (~p \/ r) /\ (p \/ ~r)'''
 
-lexer.input(data)
 
-while True:
-    tok = lexer.token()  # читаем следующий токен
-    if not tok:
-        lexer.endConjunct()  # Нужно попробовать закрыть блок. Если не выйдет, выстрелит ошибка
-        break    # закончились печеньки
-    print (tok)
+def p_conjunctset_extend(p):
+    'conjunctset : conjunctset AND conjunctset'
+    p[0] = p[1] | p[3]
+    global saveSet
+    saveSet = p[0]
 
-print("Initial conjuncts:")
-for conj in myLex.conjuncts:
+
+def p_conjunctset_paran(p):
+    'conjunctset : LPAREN conjunctset RPAREN'
+    p[0] = p[2]
+
+
+def p_conjunctset_create(p):
+    'conjunctset : conjunct'
+    s = set()
+    s.add(p[1])
+    print(p[1])
+    p[0] = s
+
+
+def p_conjunct_extend(p):
+    'conjunct : conjunct OR conjunct'
+    p[0] = p[1].addElements(p[3].variables)
+
+
+def p_conjunct_create(p):
+    'conjunct : element'
+    conj = Conjunct()
+    conj.addElement(p[1])
+    p[0] = conj
+
+
+def p_element_negation(p):
+    "element : NOT element"
+    tempEl = p[2]
+    tempEl.negate()
+    p[0] = tempEl
+
+
+def p_element_paranthesis(p):
+    'element : LPAREN element RPAREN'
+    p[0] = p[2]
+
+
+def p_element_create(p):
+    'element : NAME'
+    el = Element(p[1], False)
+    p[0] = el
+
+
+def p_error(p):
+    print ("Syntax error at '%s'" % p.value)
+
+
+import ply.yacc as yacc
+parser = yacc.yacc()
+
+#myLex = MyLexer()
+
+#lexer = mainFunc(lexerInput=myLex)
+
+# data = '''(~p \/ q) /\ (q \/ r) /\ (~p \/ ~r) /\ (p \/ r) /\ (~p \/ r) /\ (p \/ ~r)'''
+
+data = '''(~p \/ q)'''
+
+# lex.input(data)
+#
+# while True:
+#     tok = lex.token()  # читаем следующий токен
+#     if not tok:
+#         break    # закончились печеньки
+#     print (tok)
+saveSet = set()
+parser.parse(data)
+
+for conj in saveSet:
     print(conj)
 
-checkSatByConjunctsSet(myLex.conjuncts)
+#lexer.input(data)
+
+# while True:
+#     tok = lexer.token()  # читаем следующий токен
+#     if not tok:
+#         lexer.endConjunct()  # Нужно попробовать закрыть блок. Если не выйдет, выстрелит ошибка
+#         break    # закончились печеньки
+#     print (tok)
+#
+# print("Initial conjuncts:")
+# for conj in myLex.conjuncts:
+#     print(conj)
+#
+# checkSatByConjunctsSet(myLex.conjuncts)
 
 # c1 = Conjunct()
 # c2 = Conjunct()

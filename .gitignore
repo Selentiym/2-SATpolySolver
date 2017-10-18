@@ -1,2 +1,6 @@
 #ignore IDE files
 .idea/
+
+#temporary data
+parser.out
+parsetab.py
